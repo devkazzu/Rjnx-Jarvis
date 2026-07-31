@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RJNX Jarvis</string>
+    <string name="accessibility_service_description">RJNX Jarvis Screen Awareness Service reads screen elements to summarize, translate, and execute smart actions for you.</string>
+</resources>

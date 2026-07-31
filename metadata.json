@@ -1,0 +1,6 @@
+{
+  "name": "RJNX Jarvis",
+  "description": "Futuristic AI Voice & Smart Assistant with Chat, Study Tools, Productivity Suite, and Utilities",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
