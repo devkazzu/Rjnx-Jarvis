@@ -80,12 +80,9 @@ class VoiceAssistantManager(private val context: Context) : TextToSpeech.OnInitL
     }
 
     override fun onError(utteranceId: String?) {
-        _isSpeaking.value = false
-        _audioWaveLevel.value = 0f
-    }
-})
-                
-                }
+    _isSpeaking.value = false
+    _audioWaveLevel.value = 0f
+}
             })
         }
     }
