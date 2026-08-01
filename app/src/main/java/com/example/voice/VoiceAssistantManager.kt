@@ -70,13 +70,14 @@ class VoiceAssistantManager(private val context: Context) : TextToSpeech.OnInitL
                 }
 
                 override fun onDone(utteranceId: String?) {
-                    _isSpeaking.value = false
-                    _audioWaveLevel.value = 0f
-                }
+    _isSpeaking.value = false
+    _audioWaveLevel.value = 0f
 
-                override fun onError(utteranceId: String?) {
-                    _isSpeaking.value = false
-                    _audioWaveLevel.value = 0f
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        startListening()
+    }, 500)
+}
+                
                 }
             })
         }
@@ -154,20 +155,30 @@ class VoiceAssistantManager(private val context: Context) : TextToSpeech.OnInitL
     }
 
     override fun onError(error: Int) {
-        _isListening.value = false
-        _audioWaveLevel.value = 0f
-    }
+    _isListening.value = false
+    _audioWaveLevel.value = 0f
+
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        startListening()
+    }, 800)
+}
 
     override fun onResults(results: Bundle?) {
-        _isListening.value = false
-        _audioWaveLevel.value = 0f
-        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-        val text = matches?.firstOrNull() ?: ""
-        if (text.isNotBlank()) {
-            _recognizedText.value = text
-            onSpeechResultListener?.invoke(text)
-        }
+    _isListening.value = false
+    _audioWaveLevel.value = 0f
+
+    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+    val text = matches?.firstOrNull() ?: ""
+
+    if (text.isNotBlank()) {
+        _recognizedText.value = text
+        onSpeechResultListener?.invoke(text)
     }
+
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        startListening()
+    }, 800)
+}
 
     override fun onPartialResults(partialResults: Bundle?) {
         val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
