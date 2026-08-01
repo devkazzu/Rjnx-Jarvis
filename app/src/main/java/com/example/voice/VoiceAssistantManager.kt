@@ -65,18 +65,25 @@ class VoiceAssistantManager(private val context: Context) : TextToSpeech.OnInitL
             tts?.language = Locale.US
             isTtsReady = true
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {
-                    _isSpeaking.value = true
-                }
 
-                override fun onDone(utteranceId: String?) {
-    _isSpeaking.value = false
-    _audioWaveLevel.value = 0f
+    override fun onStart(utteranceId: String?) {
+        _isSpeaking.value = true
+    }
 
-    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-        startListening()
-    }, 500)
-}
+    override fun onDone(utteranceId: String?) {
+        _isSpeaking.value = false
+        _audioWaveLevel.value = 0f
+
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            startListening()
+        }, 500)
+    }
+
+    override fun onError(utteranceId: String?) {
+        _isSpeaking.value = false
+        _audioWaveLevel.value = 0f
+    }
+})
                 
                 }
             })
