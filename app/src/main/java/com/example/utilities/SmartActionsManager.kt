@@ -16,16 +16,16 @@ object SmartActionsManager {
     )
 
     enum class ActionType {
-        OPEN_APP,
-        LAUNCH_SETTINGS,
-        SET_ALARM,
-        SET_TIMER,
-        MAKE_PHONE_CALL,
-        SEND_MESSAGE,
-        WEB_SEARCH,
-        SCREEN_EXPLAIN
-    }
-
+    OPEN_APP,
+    LAUNCH_SETTINGS,
+    SET_ALARM,
+    SET_TIMER,
+    MAKE_PHONE_CALL,
+    SEND_MESSAGE,
+    WEB_SEARCH,
+    SCREEN_EXPLAIN,
+    FLASHLIGHT
+}
     // Parses natural command to check if it matches a system smart action
     fun parseCommand(command: String): ActionRequest? {
         val lower = command.lowercase().trim()
@@ -69,6 +69,17 @@ object SmartActionsManager {
                 ActionRequest(ActionType.SCREEN_EXPLAIN, lower)
             }
 
+            lower.contains("turn on flashlight") ||
+lower.contains("flashlight on") ||
+lower.contains("torch on") -> {
+    ActionRequest(ActionType.FLASHLIGHT, "on")
+}
+
+lower.contains("turn off flashlight") ||
+lower.contains("flashlight off") ||
+lower.contains("torch off") -> {
+    ActionRequest(ActionType.FLASHLIGHT, "off")
+}
             else -> null
         }
     }
@@ -87,6 +98,7 @@ object SmartActionsManager {
                     "Searching Google for '${request.target}'"
                 }
                 ActionType.SCREEN_EXPLAIN -> "Analyzing screen content..."
+                ActionType.FLASHLIGHT -> toggleFlashlight(context, request.target)
             }
         } catch (e: Exception) {
             Log.e("SmartActionsManager", "Error executing action", e)
@@ -167,4 +179,21 @@ object SmartActionsManager {
         context.startActivity(intent)
         return "Opening message composer..."
     }
-}
+private fun toggleFlashlight(context: Context, mode: String): String {
+    return try {
+        val manager = context.getSystemService(Context.CAMERA_SERVICE)
+                as android.hardware.camera2.CameraManager
+
+        val id = manager.cameraIdList.first()
+
+        manager.setTorchMode(id, mode == "on")
+
+        if (mode == "on")
+            "Flashlight turned on."
+        else
+            "Flashlight turned off."
+
+    } catch (e: Exception) {
+        "Flashlight not supported."
+    }
+}}
