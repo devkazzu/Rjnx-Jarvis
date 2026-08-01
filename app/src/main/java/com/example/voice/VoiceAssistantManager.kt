@@ -61,32 +61,32 @@ class VoiceAssistantManager(private val context: Context) : TextToSpeech.OnInitL
     }
 
     override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale.US
-            isTtsReady = true
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+    if (status == TextToSpeech.SUCCESS) {
+        tts?.language = Locale.US
+        isTtsReady = true
 
-    override fun onStart(utteranceId: String?) {
-        _isSpeaking.value = true
+        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+
+            override fun onStart(utteranceId: String?) {
+                _isSpeaking.value = true
+            }
+
+            override fun onDone(utteranceId: String?) {
+                _isSpeaking.value = false
+                _audioWaveLevel.value = 0f
+
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    startListening()
+                }, 500)
+            }
+
+            override fun onError(utteranceId: String?) {
+                _isSpeaking.value = false
+                _audioWaveLevel.value = 0f
+            }
+        })
     }
-
-    override fun onDone(utteranceId: String?) {
-        _isSpeaking.value = false
-        _audioWaveLevel.value = 0f
-
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            startListening()
-        }, 500)
-    }
-
-    override fun onError(utteranceId: String?) {
-    _isSpeaking.value = false
-    _audioWaveLevel.value = 0f
 }
-            })
-        }
-    }
-
     fun speak(text: String, pitch: Float = 1.0f, rate: Float = 1.0f) {
         if (isTtsReady && tts != null) {
             tts?.setPitch(pitch)
