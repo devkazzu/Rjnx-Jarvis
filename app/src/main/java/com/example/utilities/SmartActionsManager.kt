@@ -16,6 +16,13 @@ object SmartActionsManager {
     )
 
     enum class ActionType {
+    ANSWER_CALL,
+    END_CALL,
+    SPEAKER_ON,
+    SPEAKER_OFF,
+    MUTE_CALL,
+    UNMUTE_CALL,
+    BLUETOOTH_SETTINGS,
     OPEN_APP,
     LAUNCH_SETTINGS,
     SET_ALARM,
@@ -31,6 +38,34 @@ object SmartActionsManager {
         val lower = command.lowercase().trim()
 
         return when {
+            lower.contains("answer call") || lower.contains("pick up the call") || lower == "answer" -> {
+                ActionRequest(ActionType.ANSWER_CALL, "")
+            }
+
+            lower.contains("reject call") || lower.contains("decline call") || lower.contains("cut call") || lower.contains("end call") || lower == "hang up" -> {
+                ActionRequest(ActionType.END_CALL, "")
+            }
+
+            lower.contains("speaker on") || lower.contains("turn speaker on") || lower.contains("speakerphone on") -> {
+                ActionRequest(ActionType.SPEAKER_ON, "")
+            }
+
+            lower.contains("speaker off") || lower.contains("turn speaker off") || lower.contains("speakerphone off") -> {
+                ActionRequest(ActionType.SPEAKER_OFF, "")
+            }
+
+            lower.contains("mute call") || lower == "mute" || lower.contains("microphone mute") -> {
+                ActionRequest(ActionType.MUTE_CALL, "")
+            }
+
+            lower.contains("unmute call") || lower == "unmute" || lower.contains("microphone unmute") -> {
+                ActionRequest(ActionType.UNMUTE_CALL, "")
+            }
+
+            lower.contains("bluetooth settings") || lower.contains("bluetooth on") || lower.contains("bluetooth off") || lower.contains("connect bluetooth") -> {
+                ActionRequest(ActionType.BLUETOOTH_SETTINGS, "")
+            }
+
             lower.startsWith("open app") || lower.startsWith("open ") || lower.startsWith("launch ") -> {
                 val appName = lower.replace("open app ", "")
                     .replace("open ", "")
@@ -87,6 +122,13 @@ lower.contains("torch off") -> {
     fun executeAction(context: Context, request: ActionRequest): String {
         return try {
             when (request.type) {
+                ActionType.ANSWER_CALL -> CallControlManager.answer(context)
+                ActionType.END_CALL -> CallControlManager.end(context)
+                ActionType.SPEAKER_ON -> CallControlManager.setSpeaker(context, true)
+                ActionType.SPEAKER_OFF -> CallControlManager.setSpeaker(context, false)
+                ActionType.MUTE_CALL -> CallControlManager.setMute(context, true)
+                ActionType.UNMUTE_CALL -> CallControlManager.setMute(context, false)
+                ActionType.BLUETOOTH_SETTINGS -> CallControlManager.openBluetoothSettings(context)
                 ActionType.OPEN_APP -> openAppByName(context, request.target)
                 ActionType.LAUNCH_SETTINGS -> launchSettings(context, request.target)
                 ActionType.SET_ALARM -> setAlarmFromText(context, request.target)
