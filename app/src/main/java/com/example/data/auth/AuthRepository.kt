@@ -16,11 +16,21 @@ import kotlinx.coroutines.launch
 
 class AuthRepository(private val context: Context) {
 
-    private val firebaseAuth: FirebaseAuth by lazy {
-    if (FirebaseApp.getApps(context).isEmpty()) {
-        FirebaseApp.initializeApp(context)
+    private val firebaseAuth: FirebaseAuth? by lazy {
+    try {
+        if (FirebaseApp.getApps(context).isEmpty()) {
+            FirebaseApp.initializeApp(context)
+        }
+
+        if (FirebaseApp.getApps(context).isEmpty()) {
+            null
+        } else {
+            FirebaseAuth.getInstance()
+        }
+    } catch (e: Exception) {
+        Log.e("AuthRepository", "Firebase initialization failed", e)
+        null
     }
-    FirebaseAuth.getInstance()
 }
 
     private val _currentUser = MutableStateFlow<UserAccount>(getInitialUser())
