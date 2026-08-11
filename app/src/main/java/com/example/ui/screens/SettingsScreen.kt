@@ -104,10 +104,12 @@ fun SettingsScreen(
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = when (currentUser.authProvider) {
-                            AuthProvider.GOOGLE -> ElectricBlue.copy(alpha = 0.25f)
-                            AuthProvider.EMAIL -> GlowingMagenta.copy(alpha = 0.25f)
-                            AuthProvider.GUEST -> GlassSurfaceLight
-                        }
+    AuthProvider.GOOGLE -> ElectricBlue.copy(alpha = 0.25f)
+    AuthProvider.EMAIL -> GlowingMagenta.copy(alpha = 0.25f)
+    AuthProvider.GITHUB -> ElectricBlue.copy(alpha = 0.25f)
+    AuthProvider.PHONE -> NeonCyan.copy(alpha = 0.25f)
+    AuthProvider.GUEST -> GlassSurfaceLight
+}
                     ) {
                         Text(
                             text = currentUser.authProvider.name,
