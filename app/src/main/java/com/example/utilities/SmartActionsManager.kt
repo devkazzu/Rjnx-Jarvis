@@ -188,7 +188,7 @@ object SmartActionsManager {
             target.contains("accessibility") -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             target.contains("display") -> Intent(Settings.ACTION_DISPLAY_SETTINGS)
             target.contains("battery") -> Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)
-            target.contains("notification") -> Intent(Settings.NOTIFICATION_SETTINGS)
+            target.contains("notification") -> Intent(Settings.ACTION_SETTINGS)
             target.contains("sound") -> Intent(Settings.ACTION_SOUND_SETTINGS)
             target.contains("connection") || target.contains("connections") || target.contains("network") -> Intent(Settings.ACTION_WIRELESS_SETTINGS)
             target.contains("message") || target.contains("sms") -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:com.android.mms"))
