@@ -58,9 +58,8 @@ class AuthRepository(private val context: Context) {
                 _currentUser.value = user
                 _authState.value = AuthState.Authenticated(user)
             } else {
-                val guest = UserAccount(userId = "guest_user", email = "guest@jarvis.ai", displayName = "Guest Commander", authProvider = AuthProvider.GUEST)
-                _currentUser.value = guest
-                _authState.value = AuthState.Authenticated(guest)
+                _currentUser.value = getInitialUser()
+                _authState.value = AuthState.Idle
             }
         }
     }
@@ -69,49 +68,27 @@ class AuthRepository(private val context: Context) {
         _authState.value = AuthState.Loading
         try {
             if (email.isBlank() || pass.length < 6) {
-                val err = "Email cannot be empty and password must be at least 6 characters."
+                val err = "Enter a valid email and a password of at least 6 characters."
                 _authState.value = AuthState.Error(err)
                 return@withContext Result.failure(Exception(err))
             }
-
-            if (firebaseAuth != null) {
-                try {
-                    val result = firebaseAuth.signInWithEmailAndPassword(email, pass).await()
-                    val fbUser = result.user
-                    if (fbUser != null) {
-                        val user = UserAccount(
-                            userId = fbUser.uid,
-                            email = fbUser.email ?: email,
-                            displayName = fbUser.displayName ?: email.substringBefore("@"),
-                            photoUrl = fbUser.photoUrl?.toString() ?: "",
-                            authProvider = AuthProvider.EMAIL,
-                            isEmailVerified = fbUser.isEmailVerified
-                        )
-                        saveUserLocally(user)
-                        _currentUser.value = user
-                        _authState.value = AuthState.Authenticated(user)
-                        return@withContext Result.success(user)
-                    }
-                } catch (e: Exception) {
-                    Log.w("AuthRepository", "Firebase sign in failed: ${e.message}. Using fallback authentication.")
-                }
-            }
-
-            // Fallback account authentication
-            val userId = "usr_" + email.hashCode().toString().takeLast(8)
-            val displayName = email.substringBefore("@").replaceFirstChar { it.uppercase() }
+            val auth = firebaseAuth ?: throw Exception("Firebase Authentication is not configured.")
+            val result = auth.signInWithEmailAndPassword(email, pass).await()
+            val fbUser = result.user ?: throw Exception("Authentication returned no user.")
             val user = UserAccount(
-                userId = userId,
-                email = email,
-                displayName = displayName,
-                authProvider = AuthProvider.EMAIL
+                userId = fbUser.uid,
+                email = fbUser.email ?: email,
+                displayName = fbUser.displayName ?: email.substringBefore("@"),
+                photoUrl = fbUser.photoUrl?.toString() ?: "",
+                authProvider = AuthProvider.EMAIL,
+                isEmailVerified = fbUser.isEmailVerified
             )
             saveUserLocally(user)
             _currentUser.value = user
             _authState.value = AuthState.Authenticated(user)
             Result.success(user)
         } catch (e: Exception) {
-            val msg = e.localizedMessage ?: "Authentication failed"
+            val msg = e.localizedMessage ?: "Sign in failed"
             _authState.value = AuthState.Error(msg)
             Result.failure(e)
         }
@@ -121,43 +98,20 @@ class AuthRepository(private val context: Context) {
         _authState.value = AuthState.Loading
         try {
             if (email.isBlank() || pass.length < 6) {
-                val err = "Email cannot be empty and password must be at least 6 characters."
+                val err = "Enter a valid email and a password of at least 6 characters."
                 _authState.value = AuthState.Error(err)
                 return@withContext Result.failure(Exception(err))
             }
-
+            val auth = firebaseAuth ?: throw Exception("Firebase Authentication is not configured.")
             val displayName = name.ifBlank { email.substringBefore("@").replaceFirstChar { it.uppercase() } }
-
-            if (firebaseAuth != null) {
-                try {
-                    val result = firebaseAuth.createUserWithEmailAndPassword(email, pass).await()
-                    val fbUser = result.user
-                    if (fbUser != null) {
-                        val profileUpdates = UserProfileChangeRequest.Builder()
-                            .setDisplayName(displayName)
-                            .build()
-                        fbUser.updateProfile(profileUpdates).await()
-
-                        val user = UserAccount(
-                            userId = fbUser.uid,
-                            email = fbUser.email ?: email,
-                            displayName = displayName,
-                            authProvider = AuthProvider.EMAIL
-                        )
-                        saveUserLocally(user)
-                        _currentUser.value = user
-                        _authState.value = AuthState.Authenticated(user)
-                        return@withContext Result.success(user)
-                    }
-                } catch (e: Exception) {
-                    Log.w("AuthRepository", "Firebase sign up failed: ${e.message}. Using fallback account creation.")
-                }
-            }
-
-            val userId = "usr_" + email.hashCode().toString().takeLast(8)
+            val result = auth.createUserWithEmailAndPassword(email, pass).await()
+            val fbUser = result.user ?: throw Exception("Account creation returned no user.")
+            fbUser.updateProfile(
+                UserProfileChangeRequest.Builder().setDisplayName(displayName).build()
+            ).await()
             val user = UserAccount(
-                userId = userId,
-                email = email,
+                userId = fbUser.uid,
+                email = fbUser.email ?: email,
                 displayName = displayName,
                 authProvider = AuthProvider.EMAIL
             )
@@ -166,7 +120,7 @@ class AuthRepository(private val context: Context) {
             _authState.value = AuthState.Authenticated(user)
             Result.success(user)
         } catch (e: Exception) {
-            val msg = e.localizedMessage ?: "Account registration failed"
+            val msg = e.localizedMessage ?: "Registration failed"
             _authState.value = AuthState.Error(msg)
             Result.failure(e)
         }
@@ -175,39 +129,16 @@ class AuthRepository(private val context: Context) {
     suspend fun signInWithGoogleCredential(idToken: String, userEmail: String? = null, userName: String? = null): Result<UserAccount> = withContext(Dispatchers.IO) {
         _authState.value = AuthState.Loading
         try {
-            if (firebaseAuth != null && idToken.isNotBlank()) {
-                try {
-                    val credential = GoogleAuthProvider.getCredential(idToken, null)
-                    val result = firebaseAuth.signInWithCredential(credential).await()
-                    val fbUser = result.user
-                    if (fbUser != null) {
-                        val user = UserAccount(
-                            userId = fbUser.uid,
-                            email = fbUser.email ?: userEmail ?: "google.user@jarvis.ai",
-                            displayName = fbUser.displayName ?: userName ?: "Google Commander",
-                            photoUrl = fbUser.photoUrl?.toString() ?: "",
-                            authProvider = AuthProvider.GOOGLE,
-                            isEmailVerified = true
-                        )
-                        saveUserLocally(user)
-                        _currentUser.value = user
-                        _authState.value = AuthState.Authenticated(user)
-                        return@withContext Result.success(user)
-                    }
-                } catch (e: Exception) {
-                    Log.w("AuthRepository", "Firebase Google credential sign in error: ${e.message}")
-                }
-            }
-
-            // Google Sign In fallback
-            val email = userEmail ?: "google.commander@jarvis.ai"
-            val name = userName ?: "Google Commander"
-            val userId = "goog_" + email.hashCode().toString().takeLast(8)
+            val auth = firebaseAuth ?: throw Exception("Firebase Authentication is not configured.")
+            if (idToken.isBlank()) throw Exception("Google sign-in token is missing.")
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            val result = auth.signInWithCredential(credential).await()
+            val fbUser = result.user ?: throw Exception("Google authentication returned no user.")
             val user = UserAccount(
-                userId = userId,
-                email = email,
-                displayName = name,
-                photoUrl = "https://lh3.googleusercontent.com/a/default-user",
+                userId = fbUser.uid,
+                email = fbUser.email ?: userEmail ?: "",
+                displayName = fbUser.displayName ?: userName ?: "Anu User",
+                photoUrl = fbUser.photoUrl?.toString() ?: "",
                 authProvider = AuthProvider.GOOGLE,
                 isEmailVerified = true
             )
@@ -216,7 +147,7 @@ class AuthRepository(private val context: Context) {
             _authState.value = AuthState.Authenticated(user)
             Result.success(user)
         } catch (e: Exception) {
-            val msg = e.localizedMessage ?: "Google sign in failed"
+            val msg = e.localizedMessage ?: "Google sign-in failed"
             _authState.value = AuthState.Error(msg)
             Result.failure(e)
         }
@@ -233,22 +164,105 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    fun signInAsGuest() {
-        val guest = UserAccount(
-            userId = "guest_user",
-            email = "guest@jarvis.ai",
-            displayName = "Guest Commander",
-            authProvider = AuthProvider.GUEST
-        )
-        saveUserLocally(guest)
-        _currentUser.value = guest
-        _authState.value = AuthState.Authenticated(guest)
+    suspend fun signInWithGithub(activity: android.app.Activity): Result<UserAccount> = withContext(Dispatchers.Main) {
+        _authState.value = AuthState.Loading
+        try {
+            val auth = firebaseAuth ?: throw Exception("Firebase Authentication is not configured.")
+            val provider = com.google.firebase.auth.OAuthProvider.newBuilder("github.com").build()
+            val result = auth.startActivityForSignInWithProvider(activity, provider).await()
+            val fbUser = result.user ?: throw Exception("GitHub authentication returned no user.")
+            val user = UserAccount(
+                userId = fbUser.uid,
+                email = fbUser.email ?: "",
+                displayName = fbUser.displayName ?: fbUser.email?.substringBefore("@") ?: "GitHub User",
+                photoUrl = fbUser.photoUrl?.toString() ?: "",
+                authProvider = AuthProvider.GITHUB,
+                isEmailVerified = true
+            )
+            saveUserLocally(user)
+            _currentUser.value = user
+            _authState.value = AuthState.Authenticated(user)
+            Result.success(user)
+        } catch (e: Exception) {
+            val msg = e.localizedMessage ?: "GitHub sign-in failed"
+            _authState.value = AuthState.Error(msg)
+            Result.failure(e)
+        }
+    }
+
+    private var phoneVerificationId: String? = null
+
+    fun startPhoneVerification(
+        activity: android.app.Activity,
+        phoneNumber: String,
+        onCodeSent: () -> Unit
+    ) {
+        _authState.value = AuthState.Loading
+        val auth = firebaseAuth
+        if (auth == null) {
+            _authState.value = AuthState.Error("Firebase Authentication is not configured.")
+            return
+        }
+        val options = com.google.firebase.auth.PhoneAuthOptions.newBuilder(auth)
+            .setPhoneNumber(phoneNumber)
+            .setTimeout(60L, java.util.concurrent.TimeUnit.SECONDS)
+            .setActivity(activity)
+            .setCallbacks(object : com.google.firebase.auth.PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+                override fun onVerificationCompleted(credential: com.google.firebase.auth.PhoneAuthCredential) {
+                    completePhoneCredential(credential)
+                }
+                override fun onVerificationFailed(e: com.google.firebase.FirebaseException) {
+                    _authState.value = AuthState.Error(e.localizedMessage ?: "Phone verification failed")
+                }
+                override fun onCodeSent(
+                    verificationId: String,
+                    token: com.google.firebase.auth.PhoneAuthProvider.ForceResendingToken
+                ) {
+                    phoneVerificationId = verificationId
+                    _authState.value = AuthState.Idle
+                    onCodeSent()
+                }
+            }).build()
+        com.google.firebase.auth.PhoneAuthProvider.verifyPhoneNumber(options)
+    }
+
+    fun verifyPhoneCode(code: String) {
+        val id = phoneVerificationId
+        if (id.isNullOrBlank() || code.isBlank()) {
+            _authState.value = AuthState.Error("Enter the OTP code.")
+            return
+        }
+        completePhoneCredential(com.google.firebase.auth.PhoneAuthProvider.getCredential(id, code))
+    }
+
+    private fun completePhoneCredential(credential: com.google.firebase.auth.PhoneAuthCredential) {
+        val auth = firebaseAuth ?: return
+        _authState.value = AuthState.Loading
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val result = auth.signInWithCredential(credential).await()
+                val fbUser = result.user ?: throw Exception("Phone authentication returned no user.")
+                val user = UserAccount(
+                    userId = fbUser.uid,
+                    email = fbUser.email ?: "${fbUser.phoneNumber ?: "phone"}@anu.local",
+                    displayName = fbUser.displayName ?: fbUser.phoneNumber ?: "Anu User",
+                    authProvider = AuthProvider.PHONE,
+                    isEmailVerified = true
+                )
+                saveUserLocally(user)
+                _currentUser.value = user
+                _authState.value = AuthState.Authenticated(user)
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error(e.localizedMessage ?: "OTP verification failed")
+            }
+        }
     }
 
     fun signOut() {
         runCatching { firebaseAuth?.signOut() }
         prefs.edit().clear().apply()
-        signInAsGuest()
+        _currentUser.value = getInitialUser()
+        _authState.value = AuthState.Idle
     }
 
     private fun saveUserLocally(user: UserAccount) {

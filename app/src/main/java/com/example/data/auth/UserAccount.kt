@@ -14,6 +14,8 @@ data class UserAccount(
 enum class AuthProvider {
     EMAIL,
     GOOGLE,
+    GITHUB,
+    PHONE,
     GUEST
 }
 
