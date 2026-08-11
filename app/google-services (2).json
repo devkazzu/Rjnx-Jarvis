@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "758581406274",
+    "project_id": "anu-thapa",
+    "storage_bucket": "anu-thapa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:758581406274:android:faaa1dcd8d63d271415bdb",
+        "android_client_info": {
+          "package_name": "com.aistudio.rjnxjarvis.v1"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "758581406274-u8faaj4c089u14ha8at7s87nfin7ck34.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.rjnxjarvis.v1",
+            "certificate_hash": "6af003cf301b764abe72a7dd506193932b56b76e"
+          }
+        },
+        {
+          "client_id": "758581406274-gatp67q9e0dt7881ido2mkphaq3hk2gu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6rNmrTaI_Dq1JL39RXBUGaUuIq6yRPP8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "758581406274-gatp67q9e0dt7881ido2mkphaq3hk2gu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
