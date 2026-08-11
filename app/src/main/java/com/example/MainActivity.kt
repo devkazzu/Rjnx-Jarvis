@@ -75,7 +75,12 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(permissionsState.allPermissionsGranted) {
                 if (permissionsState.allPermissionsGranted) {
                     kotlinx.coroutines.delay(500)
-                    viewModel.voiceManager.startListening()
+                    val command = intent?.getStringExtra("VOICE_COMMAND")?.trim().orEmpty()
+                    if (command.isNotBlank()) {
+                        viewModel.sendChatMessage(command, isVoice = true)
+                    } else {
+                        viewModel.voiceManager.startListening()
+                    }
                 }
             }
 
@@ -85,7 +90,7 @@ class MainActivity : ComponentActivity() {
                     containerColor = VoidBackground,
                     topBar = {
                         JarvisHeader(
-                            title = "RJNX JARVIS",
+                            title = "ANU THAPA",
                             subtitle = when (selectedTab) {
                                 JarvisTab.VOICE -> "AI Voice Assistant & HUD Core"
                                 JarvisTab.CHAT -> "Neural Gemini Chat"
