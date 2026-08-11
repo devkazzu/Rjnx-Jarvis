@@ -175,7 +175,11 @@ fun AuthGateScreen(
 }
 
 @Composable
-private fun AuthTab(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun RowScope.AuthTab(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
     Box(
         Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
             .background(if (selected) NeonCyan.copy(alpha = .18f) else Color.Transparent)
@@ -186,7 +190,11 @@ private fun AuthTab(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun ProviderButton(icon: String, text: String, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
+    OutlinedButton(
+    onClick = onClick,
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(13.dp)
+) {
         Text(icon, fontWeight = FontWeight.Black, color = NeonCyan)
         Spacer(Modifier.width(10.dp))
         Text(text, color = Color.White)
