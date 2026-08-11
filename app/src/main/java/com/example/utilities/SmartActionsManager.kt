@@ -63,11 +63,15 @@ object SmartActionsManager {
             lower.contains("unmute call") || lower == "unmute" || lower.contains("microphone unmute") -> ActionRequest(ActionType.UNMUTE_CALL, "")
             lower.contains("bluetooth settings") || lower.contains("bluetooth on") || lower.contains("bluetooth off") || lower.contains("connect bluetooth") -> ActionRequest(ActionType.BLUETOOTH_SETTINGS, "")
 
+            lower.contains("open settings") || lower.contains("wifi settings") || lower.contains("message settings") || lower.contains("sms settings") ||
+                lower.contains("open accessibility") || lower.contains("open display") || lower.contains("open connections") ||
+                lower.contains("open connection") || lower.contains("open battery settings") || lower.contains("open notification settings") ||
+                lower.contains("open sound settings") -> ActionRequest(ActionType.LAUNCH_SETTINGS, lower)
+
             lower.startsWith("open app") || lower.startsWith("open ") || lower.startsWith("launch ") || lower.startsWith("start ") -> {
                 val appName = lower.replaceFirst(Regex("^(open app|open|launch|start)\\s+"), "").trim()
                 ActionRequest(ActionType.OPEN_APP, appName)
             }
-            lower.contains("open settings") || lower.contains("wifi settings") || lower.contains("message settings") || lower.contains("sms settings") -> ActionRequest(ActionType.LAUNCH_SETTINGS, lower)
             lower.startsWith("set alarm") || lower.contains("alarm for") -> ActionRequest(ActionType.SET_ALARM, lower)
             lower.startsWith("set timer") || lower.contains("timer for") -> ActionRequest(ActionType.SET_TIMER, lower)
 
@@ -138,43 +142,55 @@ object SmartActionsManager {
         }
     }
 
-    private fun openAppByName(context: Context, target: String): String {
+    private fun openAppByName(context: Context, rawTarget: String): String {
+        val target = rawTarget.lowercase().trim()
+            .replace(Regex("^(the|my)\\s+"), "")
+            .replace(Regex("\\s+(app|application)$"), "")
+            .trim()
+
+        // Prefer the real installed-app list, but also use well-known package aliases.
         val installed = SystemUtils.getInstalledApps(context)
-        val matched = installed.firstOrNull { it.name.lowercase().contains(target) || target.contains(it.name.lowercase()) }
-        return if (matched != null) {
-            val success = SystemUtils.launchApp(context, matched.packageName)
-            if (success) "Opening ${matched.name}..." else "Failed to open ${matched.name}"
-        } else {
-            // Common default fallback packages
-            val pkg = when (target) {
-                "youtube" -> "com.google.android.youtube"
-                "chrome" -> "com.android.chrome"
-                "whatsapp" -> "com.whatsapp"
-                "maps" -> "com.google.android.apps.maps"
-                "camera" -> "com.android.camera"
-                "settings" -> "com.android.settings"
-                "gallery" -> "com.google.android.apps.photos"
-                "photos" -> "com.google.android.apps.photos"
-                "camera" -> "com.sec.android.app.camera"
-                "instagram" -> "com.instagram.android"
-                "facebook" -> "com.facebook.katana"
-                "telegram" -> "org.telegram.messenger"
-                else -> null
-            }
-            if (pkg != null && SystemUtils.launchApp(context, pkg)) {
-                "Opening $target..."
-            } else {
-                "App '$target' not found on device."
-            }
+        val aliases = mapOf(
+            "instagram" to listOf("com.instagram.android"),
+            "insta" to listOf("com.instagram.android"),
+            "youtube" to listOf("com.google.android.youtube"),
+            "whatsapp" to listOf("com.whatsapp"),
+            "chrome" to listOf("com.android.chrome"),
+            "google chrome" to listOf("com.android.chrome"),
+            "facebook" to listOf("com.facebook.katana"),
+            "telegram" to listOf("org.telegram.messenger"),
+            "maps" to listOf("com.google.android.apps.maps"),
+            "google maps" to listOf("com.google.android.apps.maps"),
+            "photos" to listOf("com.google.android.apps.photos"),
+            "gallery" to listOf("com.google.android.apps.photos", "com.sec.android.gallery3d"),
+            "camera" to listOf("com.sec.android.app.camera", "com.android.camera2", "com.android.camera"),
+            "settings" to listOf("com.android.settings")
+        )
+
+        val matched = installed.firstOrNull {
+            val name = it.name.lowercase().trim()
+            name == target || name.contains(target) || target.contains(name)
         }
+        if (matched != null && SystemUtils.launchApp(context, matched.packageName)) {
+            return "Opening ${matched.name}..."
+        }
+
+        for (pkg in aliases[target].orEmpty()) {
+            if (SystemUtils.launchApp(context, pkg)) return "Opening $target..."
+        }
+        return "App '$rawTarget' not found on device."
     }
 
     private fun launchSettings(context: Context, target: String): String {
         val intent = when {
-            target.contains("wifi") -> Intent(Settings.ACTION_WIFI_SETTINGS)
+            target.contains("wifi") || target.contains("internet") -> Intent(Settings.ACTION_WIFI_SETTINGS)
             target.contains("bluetooth") -> Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
             target.contains("accessibility") -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            target.contains("display") -> Intent(Settings.ACTION_DISPLAY_SETTINGS)
             target.contains("battery") -> Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)
+            target.contains("notification") -> Intent(Settings.ACTION_NOTIFICATION_SETTINGS)
+            target.contains("sound") -> Intent(Settings.ACTION_SOUND_SETTINGS)
+            target.contains("connection") || target.contains("connections") || target.contains("network") -> Intent(Settings.ACTION_WIRELESS_SETTINGS)
             target.contains("message") || target.contains("sms") -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:com.android.mms"))
             else -> Intent(Settings.ACTION_SETTINGS)
         }.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
@@ -188,13 +204,13 @@ object SmartActionsManager {
         val numbers = Regex("\\d+").findAll(text).map { it.value.toInt() }.toList()
         val hour = numbers.getOrNull(0) ?: 7
         val minute = numbers.getOrNull(1) ?: 0
-        SystemUtils.setAlarm(context, hour, minute, "Jarvis Alarm")
+        SystemUtils.setAlarm(context, hour, minute, "Anu Alarm")
         return "Setting alarm for ${String.format("%02d:%02d", hour, minute)}"
     }
 
     private fun setTimerFromText(context: Context, text: String): String {
         val number = Regex("\\d+").find(text)?.value?.toInt() ?: 60
-        SystemUtils.setTimer(context, number, "Jarvis Timer")
+        SystemUtils.setTimer(context, number, "Anu Timer")
         return "Setting timer for $number seconds"
     }
 
@@ -236,15 +252,15 @@ object SmartActionsManager {
 
     private fun globalUi(action: String, success: String): String {
         return if (JarvisAccessibilityService.performGlobal(action)) success
-        else "Accessibility control is unavailable. Please enable RJNX Jarvis in Android Accessibility settings."
+        else "Accessibility control is unavailable. Please enable Anu in Android Accessibility settings."
     }
 
     private fun accessibilityUnavailable(): String =
-        "Accessibility control is unavailable. Please enable RJNX Jarvis in Android Accessibility settings."
+        "Accessibility control is unavailable. Please enable Anu in Android Accessibility settings."
 
     private fun initiateSendMessage(context: Context, target: String): String {
         val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")).apply {
-            putExtra("sms_body", "Sent via RJNX Jarvis Assistant")
+            putExtra("sms_body", "Sent via Anu Assistant")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
