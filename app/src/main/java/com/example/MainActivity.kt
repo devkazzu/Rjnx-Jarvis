@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import com.example.ui.components.AuthDialog
 import com.example.ui.components.JarvisHeader
 import com.example.ui.components.JarvisNavBar
 import com.example.ui.components.JarvisTab
@@ -36,14 +35,9 @@ class MainActivity : ComponentActivity() {
             val accentColorName by viewModel.accentColor.collectAsState()
             val isListening by viewModel.voiceManager.isListening.collectAsState()
             val isSpeaking by viewModel.voiceManager.isSpeaking.collectAsState()
-
             val currentUser by viewModel.currentUser.collectAsState()
             val authState by viewModel.authState.collectAsState()
 
-            var selectedTab by remember { mutableStateOf(JarvisTab.VOICE) }
-            var isAuthDialogOpen by remember { mutableStateOf(false) }
-
-            // Request Audio, Camera, Notifications, Call & SMS permissions
             val permissionsState = rememberMultiplePermissionsState(
                 permissions = buildList {
                     add(Manifest.permission.RECORD_AUDIO)
@@ -61,103 +55,111 @@ class MainActivity : ComponentActivity() {
                 }
             )
 
-            LaunchedEffect(Unit) {
-                if (!permissionsState.allPermissionsGranted) {
+            LaunchedEffect(authState) {
+                if (authState is com.example.data.auth.AuthState.Authenticated &&
+                    currentUser.authProvider != com.example.data.auth.AuthProvider.GUEST &&
+                    !permissionsState.allPermissionsGranted
+                ) {
                     permissionsState.launchMultiplePermissionRequest()
                 }
-
-                if (intent?.getBooleanExtra("TRIGGER_VOICE_PROMPT", false) == true) {
-                    selectedTab = JarvisTab.VOICE
-                }
             }
 
-            // Wait for the permission dialog to finish, then start the voice core.
-            LaunchedEffect(permissionsState.allPermissionsGranted) {
-                if (permissionsState.allPermissionsGranted) {
-                    kotlinx.coroutines.delay(500)
-                    val command = intent?.getStringExtra("VOICE_COMMAND")?.trim().orEmpty()
-                    if (command.isNotBlank()) {
-                        viewModel.sendChatMessage(command, isVoice = true)
-                    } else {
-                        viewModel.voiceManager.startListening()
-                    }
-                }
-            }
+            var selectedTab by remember { mutableStateOf(JarvisTab.VOICE) }
 
             JarvisTheme(themeMode = themeMode, accentColorName = accentColorName) {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    containerColor = VoidBackground,
-                    topBar = {
-                        JarvisHeader(
-                            title = "ANU THAPA",
-                            subtitle = when (selectedTab) {
-                                JarvisTab.VOICE -> "AI Voice Assistant & HUD Core"
-                                JarvisTab.CHAT -> "Neural Gemini Chat"
-                                JarvisTab.STATUS -> "Diagnostics & Service Control"
-                                JarvisTab.SMART -> "Smart Tools & App Launcher"
-                                JarvisTab.STUDY -> "Academic Suite & Doubt Solver"
-                                JarvisTab.PRODUCTIVITY -> "To-Dos, Habits & Expenses"
-                                JarvisTab.UTILITIES -> "QR Tools & Flashlight HUD"
-                                JarvisTab.SETTINGS -> "Customization & API Keys"
-                            },
-                            isListening = isListening,
-                            isSpeaking = isSpeaking,
-                            userName = currentUser.displayName,
-                            userProvider = currentUser.authProvider,
-                            onProfileClick = { isAuthDialogOpen = true },
-                            onVoiceClick = {
-                                selectedTab = JarvisTab.VOICE
-                                if (isSpeaking) {
-                                    viewModel.voiceManager.stopSpeaking()
-                                } else if (isListening) {
-                                    viewModel.voiceManager.stopListening()
-                                } else {
-                                    viewModel.voiceManager.startListening()
-                                }
-                            }
-                        )
-                    },
-                    bottomBar = {
-                        JarvisNavBar(
-                            selectedTab = selectedTab,
-                            onTabSelected = { selectedTab = it }
-                        )
-                    }
-                ) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    ) {
-                        when (selectedTab) {
-                            JarvisTab.VOICE -> VoiceAssistantScreen(viewModel = viewModel)
-                            JarvisTab.CHAT -> ChatScreen(viewModel = viewModel)
-                            JarvisTab.STATUS -> AssistantStatusScreen(viewModel = viewModel)
-                            JarvisTab.SMART -> SmartAssistantScreen(viewModel = viewModel)
-                            JarvisTab.STUDY -> StudyAssistantScreen(viewModel = viewModel)
-                            JarvisTab.PRODUCTIVITY -> ProductivityScreen(viewModel = viewModel)
-                            JarvisTab.UTILITIES -> UtilitiesScreen(viewModel = viewModel)
-                            JarvisTab.SETTINGS -> SettingsScreen(viewModel = viewModel, onOpenAuthDialog = { isAuthDialogOpen = true })
-                        }
-
-                        // Account & Auth Modal Dialog
-                        AuthDialog(
-                            isOpen = isAuthDialogOpen,
-                            onDismiss = { isAuthDialogOpen = false },
-                            currentUser = currentUser,
-                            authState = authState,
-                            onSignInEmail = { email, pass -> viewModel.signInWithEmail(email, pass) },
-                            onSignUpEmail = { email, pass, name -> viewModel.signUpWithEmail(email, pass, name) },
-                            onGoogleSignIn = { viewModel.signInWithGoogle() },
-                            onGuestSignIn = { viewModel.signInAsGuest() },
-                            onSignOut = { viewModel.signOut() },
-                            onResetPassword = { email -> viewModel.sendPasswordReset(email) }
-                        )
-                    }
+                if (authState is com.example.data.auth.AuthState.Authenticated &&
+                    currentUser.authProvider != com.example.data.auth.AuthProvider.GUEST
+                ) {
+                    MainAuthenticatedUi(
+                        viewModel = viewModel,
+                        selectedTab = selectedTab,
+                        onTabSelected = { selectedTab = it },
+                        currentUser = currentUser,
+                        isListening = isListening,
+                        isSpeaking = isSpeaking
+                    )
+                } else {
+                    AuthGateScreen(
+                        authState = authState,
+                        onEmailSignIn = { email, pass -> viewModel.signInWithEmail(email, pass) },
+                        onEmailRegister = { email, pass, name -> viewModel.signUpWithEmail(email, pass, name) },
+                        onGoogle = {
+                            // Real Google OAuth requires the Firebase Android project/client ID.
+                            viewModel.signInWithGoogle("")
+                        },
+                        onGithub = { viewModel.signInWithGithub(this@MainActivity) },
+                        onPhoneStart = { phone, sent ->
+                            viewModel.startPhoneVerification(this@MainActivity, phone, sent)
+                        },
+                        onPhoneVerify = { code -> viewModel.verifyPhoneCode(code) }
+                    )
                 }
             }
         }
     }
 }
 
+@Composable
+private fun MainAuthenticatedUi(
+    viewModel: JarvisViewModel,
+    selectedTab: JarvisTab,
+    onTabSelected: (JarvisTab) -> Unit,
+    currentUser: com.example.data.auth.UserAccount,
+    isListening: Boolean,
+    isSpeaking: Boolean
+) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = VoidBackground,
+        topBar = {
+            JarvisHeader(
+                title = "ANU THAPA",
+                subtitle = when (selectedTab) {
+                    JarvisTab.VOICE -> "AI Voice Assistant & HUD Core"
+                    JarvisTab.CHAT -> "Neural Gemini Chat"
+                    JarvisTab.STATUS -> "Diagnostics & Service Control"
+                    JarvisTab.SMART -> "Smart Tools & App Launcher"
+                    JarvisTab.STUDY -> "Academic Suite & Doubt Solver"
+                    JarvisTab.PRODUCTIVITY -> "To-Dos, Habits & Expenses"
+                    JarvisTab.UTILITIES -> "QR Tools & Flashlight HUD"
+                    JarvisTab.SETTINGS -> "Customization & API Keys"
+                },
+                isListening = isListening,
+                isSpeaking = isSpeaking,
+                userName = currentUser.displayName,
+                userProvider = currentUser.authProvider,
+                onProfileClick = { },
+                onVoiceClick = {
+                    if (isSpeaking) {
+                        viewModel.voiceManager.stopSpeaking()
+                    } else if (isListening) {
+                        viewModel.voiceManager.stopListening()
+                    } else {
+                        viewModel.voiceManager.startListening()
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            JarvisNavBar(
+                selectedTab = selectedTab,
+                onTabSelected = onTabSelected
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier.fillMaxSize().padding(innerPadding)
+        ) {
+            when (selectedTab) {
+                JarvisTab.VOICE -> VoiceAssistantScreen(viewModel = viewModel)
+                JarvisTab.CHAT -> ChatScreen(viewModel = viewModel)
+                JarvisTab.STATUS -> AssistantStatusScreen(viewModel = viewModel)
+                JarvisTab.SMART -> SmartAssistantScreen(viewModel = viewModel)
+                JarvisTab.STUDY -> StudyAssistantScreen(viewModel = viewModel)
+                JarvisTab.PRODUCTIVITY -> ProductivityScreen(viewModel = viewModel)
+                JarvisTab.UTILITIES -> UtilitiesScreen(viewModel = viewModel)
+                JarvisTab.SETTINGS -> SettingsScreen(viewModel = viewModel, onOpenAuthDialog = { viewModel.signOut() })
+            }
+        }
+    }
+}
