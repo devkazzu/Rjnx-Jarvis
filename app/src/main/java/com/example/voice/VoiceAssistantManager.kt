@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 
 /**
- * RJNX Jarvis voice engine.
+ * Anu voice engine.
  *
  * - Uses Android SpeechRecognizer for speech input.
  * - Uses Android TextToSpeech for spoken replies.
@@ -126,7 +126,7 @@ class VoiceAssistantManager(private val context: Context) :
                 text,
                 TextToSpeech.QUEUE_FLUSH,
                 null,
-                "JARVIS_UTTERANCE_${System.currentTimeMillis()}"
+                "ANU_THAPA_UTTERANCE_${System.currentTimeMillis()}"
             )
         } catch (e: Exception) {
             Log.e(TAG, "TTS speak error", e)
