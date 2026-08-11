@@ -394,12 +394,20 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { authRepo.signUpWithEmail(email, pass, name) }
     }
 
-    fun signInWithGoogle(idToken: String = "simulated_google_token", email: String? = "commander.google@gmail.com", name: String? = "Google Commander") {
+    fun signInWithGoogle(idToken: String, email: String? = null, name: String? = null) {
         viewModelScope.launch { authRepo.signInWithGoogleCredential(idToken, email, name) }
     }
 
-    fun signInAsGuest() {
-        authRepo.signInAsGuest()
+    fun signInWithGithub(activity: android.app.Activity) {
+        viewModelScope.launch { authRepo.signInWithGithub(activity) }
+    }
+
+    fun startPhoneVerification(activity: android.app.Activity, phone: String, onCodeSent: () -> Unit) {
+        authRepo.startPhoneVerification(activity, phone, onCodeSent)
+    }
+
+    fun verifyPhoneCode(code: String) {
+        authRepo.verifyPhoneCode(code)
     }
 
     fun signOut() {
