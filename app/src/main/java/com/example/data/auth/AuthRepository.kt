@@ -3,6 +3,7 @@ package com.example.data.auth
 import android.content.Context
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +16,12 @@ import kotlinx.coroutines.launch
 
 class AuthRepository(private val context: Context) {
 
-    private val firebaseAuth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+    private val firebaseAuth: FirebaseAuth by lazy {
+    if (FirebaseApp.getApps(context).isEmpty()) {
+        FirebaseApp.initializeApp(context)
+    }
+    FirebaseAuth.getInstance()
+}
 
     private val _currentUser = MutableStateFlow<UserAccount>(getInitialUser())
     val currentUser: StateFlow<UserAccount> = _currentUser.asStateFlow()
@@ -73,8 +79,8 @@ class AuthRepository(private val context: Context) {
                 _authState.value = AuthState.Error(err)
                 return@withContext Result.failure(Exception(err))
             }
-            val auth = firebaseAuth ?: throw Exception("Firebase Authentication is not configured.")
-            val result = auth.signInWithEmailAndPassword(email, pass).await()
+            val auth = firebaseAuth
+             result = auth.signInWithEmailAndPassword(email, pass).await()
             val fbUser = result.user ?: throw Exception("Authentication returned no user.")
             val user = UserAccount(
                 userId = fbUser.uid,
