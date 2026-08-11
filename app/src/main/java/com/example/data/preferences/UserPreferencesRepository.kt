@@ -34,7 +34,7 @@ class UserPreferencesRepository(private val context: Context) {
     }
 
     val aiPersonality: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_AI_PERSONALITY] ?: "Classic Jarvis"
+        prefs[KEY_AI_PERSONALITY] ?: "Classic Anu"
     }
 
     val aiPersonalityTone: Flow<String> = context.dataStore.data.map { prefs ->
