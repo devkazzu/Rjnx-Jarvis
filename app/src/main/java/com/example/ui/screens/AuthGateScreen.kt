@@ -190,14 +190,27 @@ private fun RowScope.AuthTab(
 }
 
 @Composable
-private fun ProviderButton(icon: String, text: String, onClick: () -> Unit) {
-    OutlinedButton(
-    onClick = ...,
-modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(13.dp)
+private fun ProviderButton(
+    icon: String,
+    text: String,
+    onClick: () -> Unit
 ) {
-        Text(icon, fontWeight = FontWeight.Black, color = NeonCyan)
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(13.dp)
+    ) {
+        Text(
+            icon,
+            fontWeight = FontWeight.Black,
+            color = NeonCyan
+        )
+
         Spacer(Modifier.width(10.dp))
-        Text(text, color = Color.White)
+
+        Text(
+            text,
+            color = TextSecondary
+        )
     }
 }
