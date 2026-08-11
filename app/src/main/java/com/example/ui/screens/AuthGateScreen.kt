@@ -151,7 +151,10 @@ fun AuthGateScreen(
             }
 
             Spacer(Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, Modifier.fillMaxWidth()) {
+            Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = Modifier.fillMaxWidth()
+) {
                 HorizontalDivider(Modifier.weight(1f), color = TextSecondary.copy(alpha = .2f))
                 Text("  OR  ", color = TextSecondary, fontSize = 10.sp)
                 HorizontalDivider(Modifier.weight(1f), color = TextSecondary.copy(alpha = .2f))
