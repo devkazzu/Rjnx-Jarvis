@@ -16,11 +16,12 @@ import kotlinx.coroutines.launch
 
 class AuthRepository(private val context: Context) {
 
-    private val firebaseAuth: FirebaseAuth? by lazy {
-    try {
-        if (FirebaseApp.getApps(context).isEmpty()) {
-            FirebaseApp.initializeApp(context)
-        }
+    private val firebaseAuth: FirebaseAuth by lazy {
+    if (FirebaseApp.getApps(context).isEmpty()) {
+        FirebaseApp.initializeApp(context)
+    }
+    FirebaseAuth.getInstance()
+}
 
         if (FirebaseApp.getApps(context).isEmpty()) {
             null
