@@ -52,7 +52,9 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
     }
 
-    override fun onInterrupt() = Log.w(TAG, "Accessibility service interrupted")
+    override fun onInterrupt() {
+    Log.w(TAG, "Accessibility service interrupted")
+    }
 
     override fun onDestroy() {
         instance = null
