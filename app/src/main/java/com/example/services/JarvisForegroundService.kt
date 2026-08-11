@@ -61,7 +61,7 @@ class JarvisForegroundService : Service(), RecognitionListener {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification("RJNX Jarvis Active - Listening for 'Hey Jarvis'"))
+        startForeground(NOTIFICATION_ID, buildNotification("Anu Active - Listening for 'Hey Anu'"))
         _isRunning.value = true
 
         initWakeWordRecognizer()
@@ -73,7 +73,7 @@ class JarvisForegroundService : Service(), RecognitionListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "RJNX Jarvis Foreground Assistant",
+                "Anu Foreground Assistant",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Keeps Jarvis running in background for wake word and smart tasks"
@@ -92,7 +92,7 @@ class JarvisForegroundService : Service(), RecognitionListener {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("RJNX Jarvis Assistant")
+            .setContentTitle("Anu Assistant")
             .setContentText(contentText)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
@@ -135,12 +135,15 @@ class JarvisForegroundService : Service(), RecognitionListener {
 
         isListeningWakeWord = false
 
-        if (spokenText.contains("hey jarvis") || spokenText.contains("jarvis") || spokenText.contains("hey assistant")) {
+        if (spokenText.matches(Regex(".*\\b(anu|mio)\\b.*")) || spokenText.contains("hey anu") || spokenText.contains("hey mio") || spokenText.contains("hey jarvis") || spokenText.contains("jarvis") || spokenText.contains("hey assistant")) {
             _lastDetectedWakeWordTime.value = System.currentTimeMillis()
-            // Launch main app or trigger voice prompt
+            val command = spokenText
+                .replace(Regex("^(hey\\s+)?(anu|mio|jarvis|assistant)[,\\s:;-]*"), "")
+                .trim()
             val appIntent = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 putExtra("TRIGGER_VOICE_PROMPT", true)
+                if (command.isNotBlank()) putExtra("VOICE_COMMAND", command)
             }
             startActivity(appIntent)
         }
