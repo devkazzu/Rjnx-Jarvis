@@ -114,7 +114,7 @@ class JarvisForegroundService : Service(), RecognitionListener {
     }
 
     private fun startWakeWordListening() {
-        if (speechRecognizer == null) return
+        if (speechRecognizer == null || isListeningWakeWord) return
         isListeningWakeWord = true
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -132,6 +132,8 @@ class JarvisForegroundService : Service(), RecognitionListener {
         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         val spokenText = matches?.firstOrNull()?.lowercase() ?: ""
         Log.d("JarvisService", "Background heard: $spokenText")
+
+        isListeningWakeWord = false
 
         if (spokenText.contains("hey jarvis") || spokenText.contains("jarvis") || spokenText.contains("hey assistant")) {
             _lastDetectedWakeWordTime.value = System.currentTimeMillis()
@@ -153,6 +155,7 @@ class JarvisForegroundService : Service(), RecognitionListener {
     }
 
     override fun onError(error: Int) {
+        isListeningWakeWord = false
         // Automatically restart listening on silent errors or timeout
         serviceScope.launch {
             delay(2000)
