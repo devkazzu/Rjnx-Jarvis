@@ -109,11 +109,12 @@ fun AuthGateScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 Button(
-                    onClick = {
-                        if (message == "OTP_SENT") onPhoneVerify(otp)
-                        else onPhoneStart(phone) { message = "OTP_SENT" }
-                    },
-                    Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue)
+    onClick = {
+        if (message == "OTP_SENT") onPhoneVerify(otp)
+        else onPhoneStart(phone) { message = "OTP_SENT" }
+    },
+    modifier = Modifier.fillMaxWidth(),
+    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue)
                 ) {
                     Icon(Icons.Default.Phone, null)
                     Spacer(Modifier.width(8.dp))
@@ -139,7 +140,7 @@ fun AuthGateScreen(
                         if (register) onEmailRegister(email, password, name)
                         else onEmailSignIn(email, password)
                     },
-                    Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(
+                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(
                         containerColor = if (register) GlowingMagenta else ElectricBlue
                     )
                 ) {
@@ -191,8 +192,8 @@ private fun RowScope.AuthTab(
 @Composable
 private fun ProviderButton(icon: String, text: String, onClick: () -> Unit) {
     OutlinedButton(
-    onClick = onClick,
-    modifier = Modifier.fillMaxWidth(),
+    onClick = ...,
+modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(13.dp)
 ) {
         Text(icon, fontWeight = FontWeight.Black, color = NeonCyan)
