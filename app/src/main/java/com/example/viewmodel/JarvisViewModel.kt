@@ -351,7 +351,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         )
         for ((regex, key) in patterns) {
             val m = regex.find(raw) ?: continue
-            dao.insertMemory(MemoryEntity(key, m.groupValues[1].trim().trimEnd('.'), "Personal"))
+            dao.insertMemory(
+    MemoryEntity(
+        key = key,
+        value = m.groupValues[1].trim().trimEnd('.'),
+        category = "Personal"
+    )
+)
             return false
         }
         return false
