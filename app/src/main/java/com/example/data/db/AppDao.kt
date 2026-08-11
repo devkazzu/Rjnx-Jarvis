@@ -113,6 +113,25 @@ interface AppDao {
     @Delete
     suspend fun deleteDailyGoal(goal: DailyGoalEntity)
 
+    // Long-term Memory
+    @Query("SELECT * FROM memories ORDER BY updatedAt DESC")
+    fun getAllMemories(): Flow<List<MemoryEntity>>
+
+    @Query("SELECT * FROM memories WHERE key = :key LIMIT 1")
+    suspend fun findMemory(key: String): MemoryEntity?
+
+    @Query("SELECT * FROM memories WHERE key LIKE '%' || :query || '%' OR value LIKE '%' || :query || '%' ORDER BY updatedAt DESC LIMIT 12")
+    suspend fun searchMemories(query: String): List<MemoryEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMemory(memory: MemoryEntity): Long
+
+    @Query("DELETE FROM memories WHERE id = :id")
+    suspend fun deleteMemory(id: Long)
+
+    @Query("DELETE FROM memories")
+    suspend fun clearAllMemories()
+
     // Queued Smart Actions
     @Query("SELECT * FROM queued_actions ORDER BY timestamp DESC")
     fun getAllQueuedActions(): Flow<List<QueuedActionEntity>>

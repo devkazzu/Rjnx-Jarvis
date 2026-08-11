@@ -97,3 +97,13 @@ data class QueuedActionEntity(
     val status: String = "QUEUED" // "QUEUED", "EXECUTED", "FAILED"
 )
 
+
+@Entity(tableName = "memories")
+data class MemoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val key: String,
+    val value: String,
+    val category: String = "General",
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
