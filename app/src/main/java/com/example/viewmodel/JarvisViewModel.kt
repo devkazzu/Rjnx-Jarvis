@@ -77,7 +77,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     // Settings States
     val themeMode = preferencesRepo.themeMode.stateIn(viewModelScope, SharingStarted.Eagerly, "Dark Futuristic")
-    val aiPersonality = preferencesRepo.aiPersonality.stateIn(viewModelScope, SharingStarted.Eagerly, "Classic Jarvis")
+    val aiPersonality = preferencesRepo.aiPersonality.stateIn(viewModelScope, SharingStarted.Eagerly, "Classic Anu")
     val aiPersonalityTone = preferencesRepo.aiPersonalityTone.stateIn(viewModelScope, SharingStarted.Eagerly, "Classic Futuristic")
     val aiResponseVerbosity = preferencesRepo.aiResponseVerbosity.stateIn(viewModelScope, SharingStarted.Eagerly, "Balanced")
     val aiCustomDirective = preferencesRepo.aiCustomDirective.stateIn(viewModelScope, SharingStarted.Eagerly, "Always be polite, highly intelligent, and structured.")
@@ -105,7 +105,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
 
-    private val _lastVoiceResponse = MutableStateFlow("RJNX Jarvis ready. Say 'Hey Jarvis' or press the voice core.")
+    private val _lastVoiceResponse = MutableStateFlow("Anu ready. Say 'Hey Anu' or press the voice core.")
     val lastVoiceResponse: StateFlow<String> = _lastVoiceResponse.asStateFlow()
 
     // Study Assistant States
@@ -197,138 +197,186 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         val cleanText = text.trim()
         val lower = cleanText.lowercase()
 
-        // Check wake word or direct command
-        val prompt = if (lower.startsWith("hey jarvis")) {
-            cleanText.substringAfter("hey jarvis", "").trim().ifBlank { "Hello Jarvis" }
-        } else {
-            cleanText
+        // Wake words: Anu or Mio, with legacy Jarvis compatibility.
+        val prompt = when {
+            lower.startsWith("hey mio") -> cleanText.substringAfter("hey mio", "").trim().ifBlank { "Hello Anu" }
+            lower.startsWith("mio") -> cleanText.substringAfter("mio", "").trim().ifBlank { "Hello Anu" }
+            lower.startsWith("hey anu") -> cleanText.substringAfter("hey anu", "").trim().ifBlank { "Hello Anu" }
+            lower.startsWith("anu") -> cleanText.substringAfter("anu", "").trim().ifBlank { "Hello Anu" }
+            lower.startsWith("hey jarvis") -> cleanText.substringAfter("hey jarvis", "").trim().ifBlank { "Hello Anu" }
+            lower.startsWith("jarvis") -> cleanText.substringAfter("jarvis", "").trim().ifBlank { "Hello Anu" }
+            else -> cleanText
         }
 
         sendChatMessage(prompt, isVoice = true)
     }
 
+    val memories: StateFlow<List<MemoryEntity>> = dao.getAllMemories()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     fun sendChatMessage(prompt: String, isVoice: Boolean = false) {
         if (prompt.isBlank()) return
-
         viewModelScope.launch {
             _isGenerating.value = true
-
-            // Insert User Message
             dao.insertChatMessage(ChatMessageEntity(sender = "USER", content = prompt, isVoice = isVoice))
 
-            // Check if input is a smart system action (Open app, launch settings, set alarm, call, message)
-            val actionReq = SmartActionsManager.parseCommand(prompt)
-
-            // Local device actions must NEVER be blocked by internet availability.
-            // Calls, apps, settings, alarms, accessibility controls, flashlight, etc.
-            // are executed locally. Only cloud/AI requests require connectivity.            
-            val isOnlineNow = NetworkMonitor.checkIsOnline(getApplication())
-
-            if (!isOnlineNow) {
-                if (actionReq != null) {
-                    dao.insertQueuedAction(
-                        QueuedActionEntity(
-                            command = prompt,
-                            actionType = actionReq.type.name,
-                            target = actionReq.target,
-                            status = "QUEUED"
-                        )
-                    )
-                    val offlineMsg = "Device is offline. Smart Action '$prompt' captured in offline queue and will execute automatically when connectivity is restored."
-                    dao.insertChatMessage(ChatMessageEntity(sender = "JARVIS", content = offlineMsg, isVoice = isVoice))
-                    _lastVoiceResponse.value = offlineMsg
-                    _isGenerating.value = false
-                    if (isVoiceOutputEnabled.value || isVoice) {
-                        voiceManager.speak(offlineMsg, speechPitch.value, speechRate.value)
-                    }
-                    return@launch
-                } else {
-                    val offlineMsg = "Device is offline. Cloud AI is unavailable without internet. Try asking a Smart Action (e.g., 'Open Settings', 'Set alarm 7:00', 'Call 12345') to queue it locally."
-                    dao.insertChatMessage(ChatMessageEntity(sender = "JARVIS", content = offlineMsg, isVoice = isVoice))
-                    _lastVoiceResponse.value = offlineMsg
-                    _isGenerating.value = false
-                    if (isVoiceOutputEnabled.value || isVoice) {
-                        voiceManager.speak(offlineMsg, speechPitch.value, speechRate.value)
-                    }
-                    return@launch
-                }
-            }
-
-            if (actionReq != null && actionReq.type != SmartActionsManager.ActionType.SCREEN_EXPLAIN) {
-                val actionResult = SmartActionsManager.executeAction(getApplication(), actionReq)
-                dao.insertChatMessage(ChatMessageEntity(sender = "JARVIS", content = actionResult, isVoice = isVoice))
-                _lastVoiceResponse.value = actionResult
+            // Explicit memory commands are handled locally so they work even without AI/network.
+            if (handleMemoryCommand(prompt, isVoice)) {
                 _isGenerating.value = false
-                if (isVoiceOutputEnabled.value || isVoice) {
-                    voiceManager.speak(actionResult, speechPitch.value, speechRate.value)
-                }
                 return@launch
             }
 
+            val screenText = currentScreenText.value
+            val screenPkg = currentScreenPackage.value
+            val memoryContext = memories.value.take(12).joinToString("\n") { "${it.key}: ${it.value}" }
+            val screenContext = if (screenText.isNotBlank()) "App=$screenPkg\n$screenText" else "No accessible screen text available."
+            val isOnlineNow = NetworkMonitor.checkIsOnline(getApplication())
 
-            // Build history context
-            val history = chatMessages.value.takeLast(6).map { Pair(if (it.sender == "USER") it.content else "", if (it.sender == "JARVIS") it.content else "") }
+            // Keep the deterministic parser as a fast/offline safety net.
+            val directAction = SmartActionsManager.parseCommand(prompt)
+            if (directAction != null && directAction.type != SmartActionsManager.ActionType.SCREEN_EXPLAIN) {
+                if (!isOnlineNow) {
+                    dao.insertQueuedAction(QueuedActionEntity(command = prompt, actionType = directAction.type.name, target = directAction.target))
+                    val msg = "Offline. I queued that action and will run it when the connection returns."
+                    finishResponse(msg, isVoice)
+                    return@launch
+                }
+                val result = SmartActionsManager.executeAction(getApplication(), directAction)
+                finishResponse(result, isVoice)
+                _isGenerating.value = false
+                return@launch
+            }
 
+            // AI action router: understand natural language and navigate one UI step at a time.
+            // Re-reading the screen after every action is what makes deep navigation possible.
+            if (isOnlineNow) {
+                var actionPerformed = false
+                var lastActionResult = "Done."
+                var goal = prompt
+                for (step in 0 until 6) {
+                    val liveScreen = currentScreenText.value
+                    val livePkg = currentScreenPackage.value
+                    val liveContext = if (liveScreen.isNotBlank()) "App=$livePkg\n$liveScreen" else screenContext
+                    val plans = geminiRepo.planActions(goal, liveContext, memoryContext, customApiKey.value)
+                    val plan = plans.firstOrNull() ?: break
+                    val type = runCatching { SmartActionsManager.ActionType.valueOf(plan.type) }.getOrNull() ?: break
+                    lastActionResult = SmartActionsManager.executeAction(getApplication(), SmartActionsManager.ActionRequest(type, plan.target, plan.detail))
+                    actionPerformed = true
+                    delay(900)
+                    if (type == SmartActionsManager.ActionType.OPEN_APP || type == SmartActionsManager.ActionType.LAUNCH_SETTINGS || type == SmartActionsManager.ActionType.CLICK) {
+                        goal = prompt
+                    }
+                }
+                if (actionPerformed) {
+                    finishResponse(lastActionResult, isVoice)
+                    _isGenerating.value = false
+                    return@launch
+                }
+            } else {
+                val offlineMsg = "I need an internet connection for general AI understanding. Basic phone actions still work offline."
+                finishResponse(offlineMsg, isVoice)
+                _isGenerating.value = false
+                return@launch
+            }
+
+            val history = chatMessages.value.takeLast(10).map {
+                Pair(if (it.sender == "USER") it.content else "", if (it.sender == "JARVIS") it.content else "")
+            }
             val userName = currentUser.value.displayName
             val toneInstruction = when (aiPersonalityTone.value) {
                 "Formal & Professional" -> "Use a formal, polite, executive tone."
                 "Friendly & Empathetic" -> "Use a warm, friendly, encouraging, and empathetic tone."
-                "Witty & Sarcastic" -> "Use a witty, clever, playful, and dryly humorous tone like Tony Stark's Jarvis."
-                "Academic Tutor" -> "Act as a patient, world-class Academic Tutor explaining concepts step by step with clear analogies."
-                "Tech Guru" -> "Act as a principal AI/Software Engineer giving high-efficiency technical solutions."
-                "Motivational Coach" -> "Act as an energetic, inspiring performance coach."
-                else -> "Maintain an advanced, futuristic, polite, and highly intelligent AI voice."
+                "Witty & Sarcastic" -> "Use a witty, clever, playful, dryly humorous tone."
+                "Academic Tutor" -> "Act as a patient, world-class academic tutor."
+                "Tech Guru" -> "Act as a principal AI/software engineer."
+                "Motivational Coach" -> "Act as an energetic performance coach."
+                else -> "Maintain an advanced, futuristic, polite and intelligent assistant voice."
             }
-
             val verbosityInstruction = when (aiResponseVerbosity.value) {
-                "Concise" -> "Keep responses short, punchy, bulleted, and strictly under 3 sentences unless complex code is requested."
-                "Verbose & Detailed" -> "Provide comprehensive, in-depth explanations with step-by-step breakdowns, key points, and examples."
-                else -> "Provide balanced, clear, and well-structured responses."
+                "Concise" -> "Keep answers short and direct."
+                "Verbose & Detailed" -> "Give detailed step-by-step explanations when useful."
+                else -> "Give balanced, clear and useful answers."
             }
-
             val customDir = aiCustomDirective.value.ifBlank { "" }
-
-            // Include screen awareness context if user is asking about the screen
-            val screenContext = if (prompt.lowercase().contains("screen") || prompt.lowercase().contains("visible") || actionReq?.type == SmartActionsManager.ActionType.SCREEN_EXPLAIN) {
-                val textOnScreen = currentScreenText.value
-                val pkgName = currentScreenPackage.value
-                if (textOnScreen.isNotBlank()) {
-                    "\n\n[VISIBLE SCREEN CONTENT FROM APP '$pkgName']:\n$textOnScreen"
-                } else {
-                    "\n\n[NOTE: Accessibility Service is not active or no text was detected on current screen]."
-                }
-            } else ""
-
             val personalityPrompt = """
-                You are RJNX Jarvis, an advanced AI voice & productivity assistant addressing user '$userName'.
-                Tone Directive: $toneInstruction
-                Verbosity Directive: $verbosityInstruction
-                ${if (customDir.isNotBlank()) "User Custom Directive: $customDir" else ""}
+                You are Anu, also known as Mio, the user's personal AI assistant.
+                You can answer normal questions, explain concepts, calculate arithmetic, and converse naturally.
+                Do not claim to have performed a phone action unless the app actually executed it.
+                User display name: $userName
+                Tone: $toneInstruction
+                Response style: $verbosityInstruction
+                ${if (customDir.isNotBlank()) "Custom directive: $customDir" else ""}
+                Relevant long-term memory:
+                ${if (memoryContext.isBlank()) "None" else memoryContext}
+                Current accessible screen (may be empty):
                 $screenContext
             """.trimIndent()
 
-            val reply = geminiRepo.generateResponse(
-                prompt = prompt,
-                history = history,
-                personalityPrompt = personalityPrompt,
-                customApiKey = customApiKey.value
-            )
-
-            // Insert Jarvis Response
-            dao.insertChatMessage(ChatMessageEntity(sender = "JARVIS", content = reply, isVoice = isVoice))
-            _lastVoiceResponse.value = reply
+            val reply = geminiRepo.generateResponse(prompt, history, personalityPrompt, customApiKey.value)
+            finishResponse(reply, isVoice)
             _isGenerating.value = false
-
-            // Voice output if enabled
-            if (isVoiceOutputEnabled.value || isVoice) {
-                voiceManager.speak(reply, speechPitch.value, speechRate.value)
-            }
-
-            // Auto Cloud Sync if enabled
-            if (autoSyncEnabled.value) {
-                cloudSyncManager.backupChatHistoryToCloud(currentUser.value.userId, chatMessages.value)
-            }
+            if (autoSyncEnabled.value) cloudSyncManager.backupChatHistoryToCloud(currentUser.value.userId, chatMessages.value)
         }
+    }
+
+    private suspend fun handleMemoryCommand(prompt: String, isVoice: Boolean): Boolean {
+        val raw = prompt.trim()
+        val lower = raw.lowercase()
+        if (lower.startsWith("forget ") || lower.startsWith("delete memory ") || lower.startsWith("forget that ")) {
+            val query = raw.replaceFirst(Regex("(?i)^(forget that|forget|delete memory)\\s+"), "").trim()
+            val matches = dao.searchMemories(query).ifEmpty { memories.value.filter { it.key.contains(query, true) || it.value.contains(query, true) } }
+            matches.forEach { dao.deleteMemory(it.id) }
+            finishResponse(if (matches.isEmpty()) "I couldn't find that memory." else "Done. I forgot that memory.", isVoice)
+            return true
+        }
+        if (lower == "what do you remember about me" || lower.contains("what do you remember") || lower == "show my memories") {
+            val text = memories.value.take(20).joinToString("\n") { "• ${it.key}: ${it.value}" }
+            finishResponse(if (text.isBlank()) "I don't have any saved memories yet." else "Here's what I remember:\n$text", isVoice)
+            return true
+        }
+        val remember = Regex("(?i)^(remember|save this|remember that)\\s+(.+)$").find(raw)
+        if (remember != null) {
+            val fact = remember.groupValues[2].trim().trimEnd('.')
+            saveMemoryFact(fact)
+            finishResponse("Got it. I'll remember that.", isVoice)
+            return true
+        }
+        // Useful automatic memories for stable personal facts.
+        val patterns = listOf(
+            Regex("(?i)^my name is\\s+(.+)$") to "name",
+            Regex("(?i)^i am from\\s+(.+)$") to "location",
+            Regex("(?i)^my best friend is\\s+(.+)$") to "best_friend",
+            Regex("(?i)^my favorite subject is\\s+(.+)$") to "favorite_subject",
+            Regex("(?i)^i like\\s+(.+)$") to "preference"
+        )
+        for ((regex, key) in patterns) {
+            val m = regex.find(raw) ?: continue
+            dao.insertMemory(MemoryEntity(key, m.groupValues[1].trim().trimEnd('.'), "Personal"))
+            return false
+        }
+        return false
+    }
+
+    private suspend fun saveMemoryFact(fact: String) {
+        val parts = fact.split(Regex("\\s*[:=]\\s*"), limit = 2)
+        if (parts.size == 2) {
+            dao.insertMemory(MemoryEntity(key = parts[0].trim().lowercase(), value = parts[1].trim(), category = "User"))
+            return
+        }
+        val key = when {
+            fact.contains("name", true) -> "name"
+            fact.contains("best friend", true) -> "best_friend"
+            fact.contains("favorite", true) -> "preference"
+            fact.contains("from", true) -> "location"
+            else -> "fact_${System.currentTimeMillis()}"
+        }
+        dao.insertMemory(MemoryEntity(key = key, value = fact, category = "User"))
+    }
+
+    private suspend fun finishResponse(message: String, isVoice: Boolean) {
+        dao.insertChatMessage(ChatMessageEntity(sender = "JARVIS", content = message, isVoice = isVoice))
+        _lastVoiceResponse.value = message
+        if (isVoiceOutputEnabled.value || isVoice) voiceManager.speak(message, speechPitch.value, speechRate.value)
     }
 
     // Auth Actions
@@ -430,7 +478,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     fun copyToClipboard(text: String) {
         val clipboard = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("Jarvis Content", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("Anu Content", text))
         Toast.makeText(getApplication(), "Copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 
@@ -440,7 +488,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             putExtra(Intent.EXTRA_TEXT, text)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        val chooser = Intent.createChooser(intent, "Share via RJNX Jarvis")
+        val chooser = Intent.createChooser(intent, "Share via Anu")
         chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         getApplication<Application>().startActivity(chooser)
     }
@@ -694,7 +742,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     private fun seedInitialSampleDataIfEmpty() {
         viewModelScope.launch {
             if (chatMessages.value.isEmpty()) {
-                dao.insertChatMessage(ChatMessageEntity(sender = "JARVIS", content = "Greetings! I am RJNX Jarvis — your futuristic AI assistant. How may I assist you today?"))
+                dao.insertChatMessage(ChatMessageEntity(sender = "JARVIS", content = "Greetings! I am Anu — your futuristic AI assistant. How may I assist you today?"))
             }
             if (todos.value.isEmpty()) {
                 dao.insertTodo(TodoItemEntity(title = "Review Quantum Physics notes", category = "Study", priority = "High"))
@@ -709,7 +757,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                 dao.insertFlashcard(FlashcardEntity(deckName = "Physics", question = "State Newton's Second Law of Motion", answer = "Force equals Mass times Acceleration (F = m * a)"))
             }
             if (notes.value.isEmpty()) {
-                dao.insertNote(NoteEntity(title = "Jarvis Architecture", content = "Kotlin + Jetpack Compose + Room + Gemini 3.5 Flash REST API + TTS Engine", isPinned = true))
+                dao.insertNote(NoteEntity(title = "Anu Architecture", content = "Kotlin + Jetpack Compose + Room + Gemini 3.5 Flash REST API + TTS Engine", isPinned = true))
             }
             if (examCountdowns.value.isEmpty()) {
                 dao.insertExamCountdown(ExamCountdownEntity(examTitle = "Final Semester Finals", subject = "Computer Science", examDateMillis = System.currentTimeMillis() + 15 * 86400000L))
