@@ -81,6 +81,16 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
         }
 
+        fun getCurrentScreenText(): String {
+            val service = instance ?: return ""
+            val root = service.rootInActiveWindow ?: return ""
+            return try {
+                val builder = StringBuilder()
+                service.traverseNode(root, builder, 0)
+                builder.toString().trim()
+            } finally { root.recycle() }
+        }
+
         fun click(textOrDescription: String): Boolean {
             val service = instance ?: return false
             val root = service.rootInActiveWindow ?: return false
@@ -141,7 +151,13 @@ class JarvisAccessibilityService : AccessibilityService() {
         private fun matches(node: AccessibilityNodeInfo, q: String): Boolean {
             val text = node.text?.toString()?.lowercase(Locale.US).orEmpty()
             val desc = node.contentDescription?.toString()?.lowercase(Locale.US).orEmpty()
-            return text == q || desc == q || text.contains(q) || desc.contains(q)
+            val normalizedQ = q.replace(Regex("\\s+"), " ").trim()
+            fun match(value: String): Boolean {
+                if (value.isBlank()) return false
+                val normalized = value.replace(Regex("\\s+"), " ").trim()
+                return normalized == normalizedQ || normalized.contains(normalizedQ) || normalizedQ.contains(normalized)
+            }
+            return match(text) || match(desc)
         }
 
         private fun clickNodeOrParent(node: AccessibilityNodeInfo): Boolean {
