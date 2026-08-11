@@ -52,6 +52,10 @@ class MainActivity : ComponentActivity() {
                         add(Manifest.permission.POST_NOTIFICATIONS)
                     }
                     add(Manifest.permission.CALL_PHONE)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        add(Manifest.permission.ANSWER_PHONE_CALLS)
+                    }
+                    add(Manifest.permission.READ_PHONE_STATE)
                     add(Manifest.permission.SEND_SMS)
                 }
             )
@@ -61,9 +65,15 @@ class MainActivity : ComponentActivity() {
                     permissionsState.launchMultiplePermissionRequest()
                 }
 
-                // Check intent trigger
                 if (intent?.getBooleanExtra("TRIGGER_VOICE_PROMPT", false) == true) {
                     selectedTab = JarvisTab.VOICE
+                }
+            }
+
+            // Wait for the permission dialog to finish, then start the voice core.
+            LaunchedEffect(permissionsState.allPermissionsGranted) {
+                if (permissionsState.allPermissionsGranted) {
+                    kotlinx.coroutines.delay(500)
                     viewModel.voiceManager.startListening()
                 }
             }
