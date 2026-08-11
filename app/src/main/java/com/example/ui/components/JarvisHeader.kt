@@ -75,10 +75,12 @@ fun JarvisHeader(
                     .clip(CircleShape)
                     .background(
                         when (userProvider) {
-                            AuthProvider.GOOGLE -> ElectricBlue.copy(alpha = 0.35f)
-                            AuthProvider.EMAIL -> GlowingMagenta.copy(alpha = 0.35f)
-                            AuthProvider.GUEST -> GlassSurfaceDark
-                        }
+    AuthProvider.GOOGLE -> ElectricBlue.copy(alpha = 0.35f)
+    AuthProvider.EMAIL -> GlowingMagenta.copy(alpha = 0.35f)
+    AuthProvider.GITHUB -> ElectricBlue.copy(alpha = 0.35f)
+    AuthProvider.PHONE -> NeonCyan.copy(alpha = 0.35f)
+    AuthProvider.GUEST -> GlassSurfaceDark
+}
                     )
                     .clickable { onProfileClick() }
             ) {
