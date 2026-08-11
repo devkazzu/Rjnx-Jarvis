@@ -80,7 +80,7 @@ class AuthRepository(private val context: Context) {
                 return@withContext Result.failure(Exception(err))
             }
             val auth = firebaseAuth
-             result = auth.signInWithEmailAndPassword(email, pass).await()
+             val result = auth.signInWithEmailAndPassword(email, pass).await()
             val fbUser = result.user ?: throw Exception("Authentication returned no user.")
             val user = UserAccount(
                 userId = fbUser.uid,
