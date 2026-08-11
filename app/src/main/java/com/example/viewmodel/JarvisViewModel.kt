@@ -218,7 +218,10 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
             // Check if input is a smart system action (Open app, launch settings, set alarm, call, message)
             val actionReq = SmartActionsManager.parseCommand(prompt)
-            val isOnlineNow = NetworkMonitor.checkIsOnline(getApplication())
+
+            // Local device actions must NEVER be blocked by internet availability.
+            // Calls, apps, settings, alarms, accessibility controls, flashlight, etc.
+            // are executed locally. Only cloud/AI requests require connectivity.            val isOnlineNow = NetworkMonitor.checkIsOnline(getApplication())
 
             if (!isOnlineNow) {
                 if (actionReq != null) {
