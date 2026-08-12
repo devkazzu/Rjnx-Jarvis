@@ -82,44 +82,38 @@ class AuthRepository(private val context: Context) {
                 return@withContext Result.failure(Exception(err))
             }
 
-            if (firebaseAuth != null) {
-                try {
-                    val result = firebaseAuth.signInWithEmailAndPassword(email, pass).await()
-                    val fbUser = result.user
-                    if (fbUser != null) {
-                        val user = UserAccount(
-                            userId = fbUser.uid,
-                            email = fbUser.email ?: email,
-                            displayName = fbUser.displayName ?: email.substringBefore("@"),
-                            photoUrl = fbUser.photoUrl?.toString() ?: "",
-                            authProvider = AuthProvider.EMAIL,
-                            isEmailVerified = fbUser.isEmailVerified
-                        )
-                        saveUserLocally(user)
-                        _currentUser.value = user
-                        _authState.value = AuthState.Authenticated(user)
-                        return@withContext Result.success(user)
-                    }
-                } catch (e: Exception) {
-                    Log.w("AuthRepository", "Firebase sign in failed: ${e.message}. Using fallback authentication.")
-                }
+            val auth = firebaseAuth
+            if (auth == null) {
+                val err = "Firebase Authentication is not configured."
+                _authState.value = AuthState.Error(err)
+                return@withContext Result.failure(Exception(err))
             }
 
-            // Fallback account authentication
-            val userId = "usr_" + email.hashCode().toString().takeLast(8)
-            val displayName = email.substringBefore("@").replaceFirstChar { it.uppercase() }
+            // Email/password login MUST be verified by Firebase.
+            // Never fall back to local authentication here, otherwise any password
+            // would be accepted after Firebase rejects the credentials.
+            val result = auth.signInWithEmailAndPassword(email.trim(), pass).await()
+            val fbUser = result.user
+                ?: throw Exception("Authentication returned no user.")
+
             val user = UserAccount(
-                userId = userId,
-                email = email,
-                displayName = displayName,
-                authProvider = AuthProvider.EMAIL
+                userId = fbUser.uid,
+                email = fbUser.email ?: email.trim(),
+                displayName = fbUser.displayName ?: email.substringBefore("@"),
+                photoUrl = fbUser.photoUrl?.toString() ?: "",
+                authProvider = AuthProvider.EMAIL,
+                isEmailVerified = fbUser.isEmailVerified,
+                createdAt = fbUser.metadata?.creationTimestamp ?: System.currentTimeMillis(),
+                lastLoginAt = fbUser.metadata?.lastSignInTimestamp ?: System.currentTimeMillis()
             )
+
             saveUserLocally(user)
             _currentUser.value = user
             _authState.value = AuthState.Authenticated(user)
             Result.success(user)
         } catch (e: Exception) {
-            val msg = e.localizedMessage ?: "Authentication failed"
+            Log.w("AuthRepository", "Firebase email sign-in failed", e)
+            val msg = e.localizedMessage ?: "Invalid email or password."
             _authState.value = AuthState.Error(msg)
             Result.failure(e)
         }
